@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <!-- Bootstrap -->
     <link
       rel="stylesheet"
       href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
@@ -27,11 +28,11 @@
     ></script>
     <!-- numjs -->
     <script src="https://cdn.jsdelivr.net/gh/nicolaspanel/numjs@0.15.1/dist/numjs.min.js"></script>
-    <title>Document</title>
+    <title>Gauss Seidel</title>
   </head>
   <body>
     <main id="app" class="container">
-      <h1 class="mb-5">Gauss - Seidel</h1>
+      <h1 class="mb-5 mt-4">Método Gauss - Seidel</h1>
 
       <p>Cantidad de filas y columnas</p>
       <input type="number" v-model="columFilas" class="mb-4" />
@@ -41,20 +42,20 @@
         <div class="row d-flex justify-content-start align-items-center">
           <table v-if="tablaCreada">
             <th>Matriz</th>
-            <tr v-for="(i, indexi) in arrayColum">
-              <td v-for="(j, indexj) in arrayColum">
+            <tr v-for="(i, indexi) in vectorMatrixUI">
+              <td v-for="(j, indexj) in vectorMatrixUI">
                 <input
                   type="number"
                   style="width: 90px;"
-                  @blur="seleccionarValor({indexi, indexj, $event})"
+                  @blur="seleccionarValorMatriz({indexi, indexj, $event})"
                 />
               </td>
             </tr>
           </table>
 
           <table v-if="tablaCreada" class="ml-3">
-            <th>Respuestas</th>
-            <tr v-for="(i, indexi) in arrayColum">
+            <th>Vector Solucion</th>
+            <tr v-for="(i, indexi) in vectorMatrixUI">
               <td>
                 <input
                   type="number"
@@ -77,6 +78,8 @@
             </div>
             <input
               type="number"
+              step="0.01"
+              name="tolerancia"
               class="form-control"
               aria-label="Sizing example input"
               aria-describedby="inputGroup-sizing-default"
@@ -85,11 +88,11 @@
             />
           </div>
         </div>
-        <div class="row">
+        <div class="row" v-if="tablaCreada">
           <button
             :disabled="!poderEnviar"
             v-on:click="enviar"
-            class="mt-4 d-block"
+            class="mt-4 d-block btn btn-success"
           >
             Enviar
           </button>
@@ -97,14 +100,14 @@
       </div>
 
       <div class="container" v-if="mostrarResultados">
-        <div class="row"><h1>Respuestas</h1></div>
+        <div class="row mt-5"><h1>Respuestas</h1></div>
         <div class="row mt-4">
-          <h2>Cantidad de iteraciones {{ iteracion }}</h2>
+          <h2>Cantidad de iteraciones: {{ iteracion }}</h2>
         </div>
         <div class="row mt-3">
           <h3>Errores</h3>
         </div>
-        <div class="row" v-for="i in arrayMostrarErrores">
+        <div class="row" v-for="i in erroresAnteriores">
           <div class="col">
             <h5>x{{ i.variable + 1 }}</h5>
           </div>
@@ -124,21 +127,6 @@
           </div>
         </div>
       </div>
-
-      <!-- 
-        <ul>
-        <li v-for="dato in datos">{{ dato.id }} - {{ dato.valor }}</li>
-      </ul>
-      <br />
-      <select name="" id="" v-model="datos.id">
-         Lo que se ve antes de abrirlo
-         Lo que quiero que se muestre 
-        <option v-for="dato in datos" :value="dato.id">{{ dato.valor }}</option>
-      </select>
-      <br /><br />
-
-      <input type="text" :value="datos.id" />
-      -->
     </main>
 
     <script type="module">
@@ -149,18 +137,11 @@
       const app = new Vue({
         el: '#app',
         data: {
-          /*datos: [
-            { valor: 'Uvas', id: 1 },
-            { valor: 'Manzanas', id: 2 },
-            { valor: 'Sandias', id: 3 },
-            { valor: 'Mangos', id: 4 },
-            { valor: 'Naranjas', id: 5 }
-          ],*/
           columFilas: 0,
-          arrayColum: [] /* UI */,
+          vectorMatrixUI: [] /* UI */,
           array: [],
-          arrayRespuestas: [],
-          arrayMostrarErrores: [],
+          vectorSolucion: [],
+          erroresAnteriores: [],
           respuestasFinales: [],
           tablaCreada: false,
           poderEnviar: false,
@@ -168,51 +149,72 @@
           iteracion: 0,
           mostrarResultados: false
         },
-        created() {},
         methods: {
           hacerTabla: function() {
-            console.log(this.arrayColum)
-            for (var i = 0; i < this.columFilas; i++) {
-              this.arrayColum[i] = 0
+            if (this.columFilas !== '' && this.columFilas !== 0) {
+              for (var i = 0; i < this.columFilas; i++) {
+                this.vectorMatrixUI[i] = 0
+              }
+              this.tablaCreada = true
             }
-            console.log(this.arrayColum)
-            this.tablaCreada = true
-            // pruebas numjs
           },
-          seleccionarValor(obj) {
+          seleccionarValorMatriz(obj) {
             let { indexi: i, indexj: j, $event: e } = obj
-            console.log(e.target.value)
             if (e.target.value === '') {
-              console.log('NO ANOTASTE NADA, recarga la pagina')
+              console.log('No has establecido un valor')
+            } else {
+              let valor = { fila: i, colum: j, valor: e.target.value }
+              let repetido = this.array.filter(el =>
+                this.validarExistenciaValorMatriz(el, i, j)
+              )
+              if (repetido.length > 0) {
+                this.array.forEach(el => {
+                  if (el.fila === i && el.colum === j) {
+                    el.valor = e.target.value
+                  }
+                })
+              } else {
+                this.array.push(valor)
+              }
+              console.log('valores matriz', this.array)
             }
-            let valor = { fila: i, colum: j, valor: e.target.value }
-            this.array.push(valor)
-            //console.log(Array.from(this.array))
-            //console.log(this.array.length)
             this.desbloquearBoton()
           },
           seleccionarValorRespuesta(obj) {
             let { indexi: i, $event: e } = obj
-            console.log(e.target.value)
             if (e.target.value === '') {
-              console.log('NO ANOTASTE NADA, recarga la pagina')
+              console.log('No has establecido un valor')
+            } else {
+              let valor = { fila: i, valor: e.target.value }
+              let repetido = this.vectorSolucion.filter(el =>
+                this.validarExistenciaValorVector(el, i)
+              )
+              if (repetido.length > 0) {
+                this.vectorSolucion.forEach(el => {
+                  if (el.fila === i) {
+                    el.valor = e.target.value
+                  }
+                })
+              } else {
+                this.vectorSolucion.push(valor)
+              }
             }
-            let valor = { fila: i, valor: e.target.value }
-            this.arrayRespuestas.push(valor)
-            console.log('array respuestas', this.arrayRespuestas)
-            //console.log(Array.from(this.array))
-            //console.log(this.array.length)
             this.desbloquearBoton()
+          },
+          validarExistenciaValorMatriz(el, i, j) {
+            return i === el.fila && j === el.colum
+          },
+          validarExistenciaValorVector(el, i) {
+            return i === el.fila
           },
           obtenerTolerancia(obj) {
             let { $event: e } = obj
-            this.tolerancia = parseInt(e.target.value)
+            this.tolerancia = parseFloat(e.target.value)
             this.desbloquearBoton()
           },
           desbloquearBoton() {
-            console.log('VALOR TOLERANCIA', this.tolerancia)
             if (
-              this.arrayRespuestas.length === parseInt(this.columFilas) &&
+              this.vectorSolucion.length === parseInt(this.columFilas) &&
               this.array.length ===
                 parseInt(this.columFilas * this.columFilas) &&
               this.tolerancia !== 0
@@ -222,10 +224,9 @@
               this.poderEnviar = false
             }
           },
-          enviar() {
-            console.log('HACIENDO CALCULO')
+          organizarMatriz() {
             // Primero acomodarlos por fila
-            largo = this.array.length
+            let largo = this.array.length
             let nuevoArray = []
             // Acomodar por fila
             for (let i = 0; i < largo; i++) {
@@ -238,6 +239,7 @@
               }
             }
             console.log(nuevoArray)
+            // Acomodo de array para que los numeros esten como en la matriz introducida
             let arrayFinal = []
             let arrayAux = []
             let numAux = 0
@@ -251,19 +253,16 @@
               }
             }
             console.log('ARRAY FINAL', arrayFinal)
-            let npArray = nj.array(arrayFinal)
-            let matrix = npArray.reshape(this.columFilas, this.columFilas)
-            console.log('matrix', matrix)
-            this.gaussSeidel(matrix, this.organizarVector())
+            return arrayFinal
           },
           organizarVector() {
             let arrayVector = []
-            for (let i = 0; i < this.arrayRespuestas.length; i++) {
-              arrayVector.push(this.arrayRespuestas[i])
+            for (let i = 0; i < this.vectorSolucion.length; i++) {
+              arrayVector.push(this.vectorSolucion[i])
             }
             let arrayVectorMap = []
-            for (let j = 0; j < this.arrayRespuestas.length; j++) {
-              for (let g = 0; g < this.arrayRespuestas.length; g++) {
+            for (let j = 0; j < this.vectorSolucion.length; j++) {
+              for (let g = 0; g < this.vectorSolucion.length; g++) {
                 if (arrayVector[g].fila === j) {
                   arrayVectorMap.push(arrayVector[g].valor)
                   break
@@ -271,6 +270,17 @@
               }
             }
             return arrayVectorMap
+          },
+          enviar() {
+            console.log('HACIENDO CALCULO')
+            let arrayFinal = this.organizarMatriz()
+            let vectorSol = this.organizarVector()
+
+            // Utilizando libreria numjs
+            let npArray = nj.array(arrayFinal)
+            let matrix = npArray.reshape(this.columFilas, this.columFilas)
+            console.log('matrix', matrix)
+            this.gaussSeidel(matrix, vectorSol)
           },
           gaussSeidel(matrix, vectorAcomodado) {
             let vector = nj.array(vectorAcomodado)
@@ -288,16 +298,13 @@
               console.log('Iteracion ', k + 1)
               k = k + 1
               comp = x.clone()
-              let arrayMostrarErrores = []
+              let erroresAnteriores = []
               for (let r = 0; r < this.columFilas; r++) {
                 suma = 0
-                console.log('array mostrar', arrayMostrarErrores)
+                console.log('errores anteriores', erroresAnteriores)
                 for (let c = 0; c < this.columFilas; c++) {
-                  //console.log('valor de matrix', matrix.get(r, c))
-                  //console.log('valor de x[c]', x.get(c))
                   if (c != r) {
                     suma = suma + matrix.get(r, c) * x.get(c)
-                    //console.log('suma', suma)
                   }
                 }
                 let opDespeje = (vector.get(r) - suma) / matrix.get(r, r)
@@ -305,14 +312,14 @@
                 console.log('x' + (r + 1) + ': ' + x.get(r) + '\n')
                 let error = this.errorIteracionAnterior(x.get(r), comp.get(r))
                 arrayErrores.push({ iteracion: k, variable: r, error: error })
-                arrayMostrarErrores.push({ variable: r, error: error })
-                console.log('array mostrar 2', arrayMostrarErrores)
+                erroresAnteriores.push({ variable: r, error: error })
+                console.log('errores anteriores ahora', erroresAnteriores)
               }
               let arrayPrueba = arrayErrores.filter(
                 value => value.iteracion === k && value.error < tolerancia
               )
               this.iteracion = k
-              this.arrayMostrarErrores = arrayMostrarErrores
+              this.erroresAnteriores = erroresAnteriores
               console.log('arrayPrueba', arrayPrueba)
               this.respuestasFinales = x.selection.data
               console.log('respuestas finales', x.selection.data)
@@ -326,7 +333,6 @@
             this.mostrarResultados = true
           },
           errorIteracionAnterior(valorActual, valorAnterior) {
-            // console.log('Calculando error')
             return Math.abs((valorActual - valorAnterior) / valorActual) * 100
           }
         } // Fin de methods
