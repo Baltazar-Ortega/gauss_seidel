@@ -28,11 +28,15 @@
     ></script>
     <!-- numjs -->
     <script src="https://cdn.jsdelivr.net/gh/nicolaspanel/numjs@0.15.1/dist/numjs.min.js"></script>
+    <!-- mathjs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/6.2.0/math.min.js"></script>
     <title>Gauss Seidel</title>
   </head>
   <body>
     <main id="app" class="container">
-      <h1 class="mb-5 mt-4">Método Gauss - Seidel</h1>
+      <h1 class="mb-3 mt-4">Método Gauss - Seidel</h1>
+      <h3>Analisis Numerico - Proyecto 1</h3>
+      <h3 class="mb-5">Alberto Baltazar Gutierrez Ortega - 1887970</h3>
 
       <p>Cantidad de filas y columnas</p>
       <input type="number" v-model="columFilas" class="mb-4" />
@@ -41,7 +45,7 @@
       <div class="container">
         <div class="row d-flex justify-content-start align-items-center">
           <table v-if="tablaCreada">
-            <th>Matriz</th>
+            <th><p class="mb-1">Matriz</p></th>
             <tr v-for="(i, indexi) in vectorMatrixUI">
               <td v-for="(j, indexj) in vectorMatrixUI">
                 <input
@@ -54,10 +58,12 @@
           </table>
 
           <table v-if="tablaCreada" class="ml-3">
-            <th>Vector Solucion</th>
+            <th><p class="mb-1 ml-3">Vector Solucion</p></th>
             <tr v-for="(i, indexi) in vectorMatrixUI">
               <td>
+                =
                 <input
+                  class="ml-2"
                   type="number"
                   style="width: 90px;"
                   @blur="seleccionarValorRespuesta({indexi, $event})"
@@ -99,6 +105,15 @@
         </div>
       </div>
 
+      <div class="container" v-if="existeError">
+        <div class="row mt-4">
+          <h2 class="text-danger">Error</h2>
+        </div>
+        <div class="row">
+          <h4>{{ mensajeError }}</h4>
+        </div>
+      </div>
+
       <div class="container" v-if="mostrarResultados">
         <div class="row mt-5"><h1>Respuestas</h1></div>
         <div class="row mt-4">
@@ -108,7 +123,7 @@
           <h3>Errores</h3>
         </div>
         <div class="row" v-for="i in erroresAnteriores">
-          <div class="col">
+          <div class="col-2">
             <h5>x{{ i.variable + 1 }}</h5>
           </div>
           <div class="col">
@@ -116,10 +131,11 @@
           </div>
         </div>
         <div class="row mt-3">
-          <h3>Respuestas aproximadas</h3>
+          <h3 v-if="tolerancia != 0">Respuestas aproximadas</h3>
+          <h3 v-if="tolerancia === 0">Respuestas exactas</h3>
         </div>
         <div class="row" v-for="(j, index) in respuestasFinales">
-          <div class="col">
+          <div class="col-2">
             <h4>x{{ index + 1 }}</h4>
           </div>
           <div class="col">
@@ -147,10 +163,20 @@
           poderEnviar: false,
           tolerancia: 0,
           iteracion: 0,
-          mostrarResultados: false
+          mostrarResultados: false,
+          existeError: false,
+          mensajeError: false
         },
         methods: {
           hacerTabla: function() {
+            if (this.tablaCreada) {
+              // Quiere cambiar la dimension de la matriz
+              this.vectorMatrixUI = []
+              for (var i = 0; i < this.columFilas; i++) {
+                this.vectorMatrixUI[i] = 0
+              }
+              this.tablaCreada = true
+            }
             if (this.columFilas !== '' && this.columFilas !== 0) {
               for (var i = 0; i < this.columFilas; i++) {
                 this.vectorMatrixUI[i] = 0
@@ -162,6 +188,9 @@
             let { indexi: i, indexj: j, $event: e } = obj
             if (e.target.value === '') {
               console.log('No has establecido un valor')
+              this.array = this.array.filter(
+                el => el.fila != i || el.colum != j
+              )
             } else {
               let valor = { fila: i, colum: j, valor: e.target.value }
               let repetido = this.array.filter(el =>
@@ -184,6 +213,9 @@
             let { indexi: i, $event: e } = obj
             if (e.target.value === '') {
               console.log('No has establecido un valor')
+              this.vectorSolucion = this.vectorSolucion.filter(
+                el => el.fila != i
+              )
             } else {
               let valor = { fila: i, valor: e.target.value }
               let repetido = this.vectorSolucion.filter(el =>
@@ -213,11 +245,14 @@
             this.desbloquearBoton()
           },
           desbloquearBoton() {
+            console.log('vector solucion length', this.vectorSolucion)
             if (
               this.vectorSolucion.length === parseInt(this.columFilas) &&
               this.array.length ===
-                parseInt(this.columFilas * this.columFilas) &&
-              this.tolerancia !== 0
+                parseInt(
+                  this.columFilas * this.columFilas
+                ) /*&&
+              this.tolerancia !== 0*/
             ) {
               this.poderEnviar = true
             } else {
@@ -225,35 +260,105 @@
             }
           },
           organizarMatriz() {
-            // Primero acomodarlos por fila
-            let largo = this.array.length
-            let nuevoArray = []
-            // Acomodar por fila
-            for (let i = 0; i < largo; i++) {
-              for (let j = 0; j < largo; j++) {
-                //console.log('j', j)
-                if (this.array[j].fila === i) {
-                  //console.log('this.array[j]', this.array[j])
-                  nuevoArray.push(this.array[j])
-                }
-              }
-            }
-            console.log(nuevoArray)
-            // Acomodo de array para que los numeros esten como en la matriz introducida
+            // El numero que introduce el usuario es el ultimo elemento del array
+            // Aqui Acomodo el array para que los numeros esten como en la matriz introducida
             let arrayFinal = []
             let arrayAux = []
             let numAux = 0
+            let condicionUnoMayorAlMenos = 0
+            let error = null
             for (let i = 0; i < this.columFilas; i++) {
               for (let j = 0; j < this.columFilas; j++) {
-                arrayAux = nuevoArray.filter(el => {
+                arrayAux = this.array.filter(el => {
                   return el.colum === j && el.fila === i
                 })
+                if (parseInt(arrayAux[0].valor) === 0 && i === j) {
+                  error = 'Un elemento en la diagonal es igual a cero'
+                  return { error }
+                }
                 numAux = arrayAux[0].valor
                 arrayFinal.push(numAux)
+
+                // Condicion Diagonalmente Dominante
+                if (j === this.columFilas - 1) {
+                  let fila = arrayFinal.slice(-this.columFilas)
+                  console.log('fila ', fila)
+                  fila = fila.map(el => parseFloat(el))
+                  let sumaTodaFila = fila.reduce((total, valorActual) => {
+                    return total + Math.abs(valorActual)
+                  })
+                  let suma = sumaTodaFila - Math.abs(fila[i])
+                  if (Math.abs(fila[i]) >= suma) {
+                    if (Math.abs(fila[i]) > suma) {
+                      condicionUnoMayorAlMenos++
+                    }
+                  } else {
+                    error =
+                      'No se puede usar gauss seidel, no es diagonalmente dominante'
+                  }
+                }
               }
             }
+            if (condicionUnoMayorAlMenos === 0) {
+              error =
+                'No cumplida condicion POR LO MENOS una vez, la suma de la fila (sin el elemento de la diagonal) debe ser mayor al elemento correspondiente de la diagonal principal'
+            }
+
+            let simDefPos = this.simetricaDefinidaPositiva(arrayFinal)
             console.log('ARRAY FINAL', arrayFinal)
-            return arrayFinal
+
+            if (simDefPos || error === null) {
+              // Si es diagonalmente dominante o simetrica positiva
+              return { arrayFinal, error }
+            } else {
+              return { error }
+            }
+          },
+          simetricaDefinidaPositiva(arrayFinal) {
+            // Usando mathjs
+            let array = math.matrix(arrayFinal.map(el => parseFloat(el)))
+            let matriz = math.reshape(array, [this.columFilas, this.columFilas])
+            let transpuesta = math.transpose(matriz)
+            console.log('transpuesta', transpuesta)
+            let elementosIguales = 0
+            for (let i = 0; i < this.columFilas; i++) {
+              for (let j = 0; j < this.columFilas; j++) {
+                if (matriz.get([i, j]) === transpuesta.get([i, j])) {
+                  elementosIguales++
+                }
+              }
+            }
+            if (elementosIguales === this.columFilas * this.columFilas) {
+              console.log('elementos iguales')
+              let determinantesMayoresACero = 0
+              for (let i = 1; i <= this.columFilas; i++) {
+                let subset = math.subset(
+                  matriz,
+                  math.index(math.range(0, i), math.range(0, i))
+                )
+                console.log('subset', subset)
+                let determinante = math.det(subset)
+                console.log('determinante', determinante)
+                if (determinante > 0) {
+                  determinantesMayoresACero++
+                }
+              }
+              /*if (matriz.get([0, 0]) > 0) {
+                console.log('[0,0] si es mayor a cero')
+                determinantesMayoresACero++
+              }*/
+              console.log(
+                'determinantes mayores a cero',
+                determinantesMayoresACero
+              )
+              if (determinantesMayoresACero < this.columFilas) {
+                console.log('No es definida positiva')
+                return false
+              } else {
+                console.log('Si es definida positiva')
+                return true
+              }
+            }
           },
           organizarVector() {
             let arrayVector = []
@@ -272,15 +377,27 @@
             return arrayVectorMap
           },
           enviar() {
+            if (this.existeError) {
+              this.existeError = false
+            }
             console.log('HACIENDO CALCULO')
-            let arrayFinal = this.organizarMatriz()
+            let { arrayFinal, error } = this.organizarMatriz()
             let vectorSol = this.organizarVector()
+            console.log('arrayFinal enviar', arrayFinal)
+            console.log('error', error)
 
-            // Utilizando libreria numjs
-            let npArray = nj.array(arrayFinal)
-            let matrix = npArray.reshape(this.columFilas, this.columFilas)
-            console.log('matrix', matrix)
-            this.gaussSeidel(matrix, vectorSol)
+            if (!arrayFinal) {
+              console.log('No se puede resolver')
+              this.mensajeError = error
+              this.existeError = true
+              this.mostrarResultados = false
+            } else {
+              // Utilizando libreria numjs
+              let npArray = nj.array(arrayFinal)
+              let matrix = npArray.reshape(this.columFilas, this.columFilas)
+              console.log('matrix', matrix)
+              this.gaussSeidel(matrix, vectorSol)
+            }
           },
           gaussSeidel(matrix, vectorAcomodado) {
             let vector = nj.array(vectorAcomodado)
@@ -315,9 +432,13 @@
                 erroresAnteriores.push({ variable: r, error: error })
                 console.log('errores anteriores ahora', erroresAnteriores)
               }
-              let arrayPrueba = arrayErrores.filter(
-                value => value.iteracion === k && value.error < tolerancia
-              )
+              let arrayPrueba = arrayErrores.filter(value => {
+                if (tolerancia === 0) {
+                  return value.iteracion === k && value.error <= tolerancia
+                } else {
+                  return value.iteracion === k && value.error < tolerancia
+                }
+              })
               this.iteracion = k
               this.erroresAnteriores = erroresAnteriores
               console.log('arrayPrueba', arrayPrueba)
